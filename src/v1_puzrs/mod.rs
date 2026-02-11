@@ -143,6 +143,19 @@ impl Index<usize> for AnswerDetail {
     }
 }
 
+fn answer_common(problem: &[i32], height: i32, width: i32) -> String {
+    let mut toks = vec![];
+    for y in 0..height {
+        for x in 0..width {
+            let n = problem[(y * width + x) as usize];
+            if 1 <= n {
+                toks.push(format!("{{\"y\":{},\"x\":{},\"color\":\"black\",\"item\":{{\"kind\":\"text\",\"data\":\"{}\"}}}}", y * 2 + 1, x * 2 + 1, n));
+            }
+        }
+    }
+    format!("{{\"kind\":\"grid\",\"height\":{},\"width\":{},\"defaultStyle\":\"grid\",\"data\":[{}]}}", height, width, &toks.join(","))
+}
+
 fn answer_to_json(ans: &LinePlacement, height: i32, width: i32) -> String {
     let mut toks = vec![];
     for y in 0..height {
@@ -155,7 +168,7 @@ fn answer_to_json(ans: &LinePlacement, height: i32, width: i32) -> String {
             }
         }
     }
-    format!("{{\"kind\":\"grid\",\"height\":{},\"width\":{},\"defaultStyle\":\"grid\",\"data\":[{}]}}", height, width, &toks.join(","))
+    format!("{{\"kind\":\"grid\",\"height\":{},\"width\":{},\"defaultStyle\":\"empty\",\"data\":[{}]}}", height, width, &toks.join(","))
 }
 
 pub fn solve_problem(problem: &[i32], height: i32, width: i32, limit: usize) -> String {
@@ -170,8 +183,9 @@ pub fn solve_problem(problem: &[i32], height: i32, width: i32, limit: usize) -> 
     if res.len() == 0 {
         ret_string = "{\"status\":\"error\",\"description\":\"no answer\"}".to_owned();
     } else {
+        let common_json = answer_common(problem, height, width);
         let ans_json = res.iter().map(|a| answer_to_json(a, height, width)).collect::<Vec<_>>().join(",");
-        ret_string = format!("{{\"status\":\"ok\",\"description\":{{\"common\":[],\"answers\":[{}]}}}}", ans_json);
+        ret_string = format!("{{\"status\":\"ok\",\"description\":{{\"common\":{},\"answers\":[{}]}}}}", common_json, ans_json);
     }
     ret_string
 }
