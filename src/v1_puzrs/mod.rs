@@ -142,3 +142,36 @@ impl Index<usize> for AnswerDetail {
         &self.answers[idx]
     }
 }
+
+fn answer_to_json(ans: &LinePlacement, height: i32, width: i32) -> String {
+    let mut toks = vec![];
+    for y in 0..height {
+        for x in 0..width {
+            if x < width - 1 && ans.right(P(y, x)) {
+                toks.push(format!("{{\"y\":{},\"x\":{},\"color\":\"green\",\"item\":\"line\"}}", y * 2 + 1, x * 2 + 2));
+            }
+            if y < height - 1 && ans.down(P(y, x)) {
+                toks.push(format!("{{\"y\":{},\"x\":{},\"color\":\"green\",\"item\":\"line\"}}", y * 2 + 2, x * 2 + 1));
+            }
+        }
+    }
+    format!("{{\"kind\":\"grid\",\"height\":{},\"width\":{},\"defaultStyle\":\"grid\",\"data\":[{}]}}", height, width, &toks.join(","))
+}
+
+pub fn solve_problem(problem: &[i32], height: i32, width: i32, limit: usize) -> String {
+    let mut board = Grid::new(height, width, NO_CLUE);
+    for y in 0..height {
+        for x in 0..width {
+            board[P(y, x)] = Clue(problem[(y * width + x) as usize]);
+        }
+    }
+    let res = solve2(&board, Some(limit), false, false).answers;
+    let ret_string;
+    if res.len() == 0 {
+        ret_string = "{\"status\":\"error\",\"description\":\"no answer\"}".to_owned();
+    } else {
+        let ans_json = res.iter().map(|a| answer_to_json(a, height, width)).collect::<Vec<_>>().join(",");
+        ret_string = format!("{{\"status\":\"ok\",\"description\":{{\"common\":[],\"answers\":[{}]}}}}", ans_json);
+    }
+    ret_string
+}
