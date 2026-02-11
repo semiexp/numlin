@@ -11,10 +11,19 @@ fn hex_to_i32(c: u8) -> Option<i32> {
 }
 
 fn decode_url(url: &str) -> Option<(usize, usize, Vec<i32>)> {
-    let url = url.strip_prefix("http://").or_else(|| url.strip_prefix("https://"))?;
-    let url = url.strip_prefix("puzz.link/").or_else(|| url.strip_prefix("pzv.jp/")).or_else(|| url.strip_prefix("pzprxs.vercel.app/"))?;
-    let url = url.strip_prefix("p?").or_else(|| url.strip_prefix("p.html?"))?;
-    let url = url.strip_prefix("numlin/").or_else(|| url.strip_prefix("numberlink/"))?;
+    let url = url
+        .strip_prefix("http://")
+        .or_else(|| url.strip_prefix("https://"))?;
+    let url = url
+        .strip_prefix("puzz.link/")
+        .or_else(|| url.strip_prefix("pzv.jp/"))
+        .or_else(|| url.strip_prefix("pzprxs.vercel.app/"))?;
+    let url = url
+        .strip_prefix("p?")
+        .or_else(|| url.strip_prefix("p.html?"))?;
+    let url = url
+        .strip_prefix("numlin/")
+        .or_else(|| url.strip_prefix("numberlink/"))?;
 
     let parts = url.split('/').collect::<Vec<_>>();
     if parts.len() != 3 {

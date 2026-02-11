@@ -1,5 +1,5 @@
-use super::{Grid, D, LP, P};
 use super::*;
+use super::{D, Grid, LP, P};
 use std::fmt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

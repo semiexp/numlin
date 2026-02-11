@@ -1,5 +1,5 @@
-use std::ops::{Index, IndexMut};
 use std::ops::{Add, Mul, Sub};
+use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P(pub i32, pub i32);

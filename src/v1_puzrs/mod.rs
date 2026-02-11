@@ -11,7 +11,7 @@ pub struct Clue(pub i32);
 pub const NO_CLUE: Clue = Clue(0);
 pub const UNUSED: Clue = Clue(-1);
 
-use util::{Grid, D, LP, P, FOUR_NEIGHBOURS};
+use util::{D, FOUR_NEIGHBOURS, Grid, LP, P};
 
 #[derive(Clone)]
 pub struct LinePlacement {
@@ -153,7 +153,126 @@ fn answer_common(problem: &[i32], height: i32, width: i32) -> String {
             }
         }
     }
-    format!("{{\"kind\":\"grid\",\"height\":{},\"width\":{},\"defaultStyle\":\"grid\",\"data\":[{}]}}", height, width, &toks.join(","))
+    format!(
+        "{{\"kind\":\"grid\",\"height\":{},\"width\":{},\"defaultStyle\":\"grid\",\"data\":[{}]}}",
+        height,
+        width,
+        &toks.join(",")
+    )
+}
+
+fn find_extra_answer(ans: &LinePlacement, height: i32, width: i32) -> Option<LinePlacement> {
+    let mut unit_id = vec![vec![-1; width as usize]; height as usize];
+    let mut next_id = 0;
+    for y in 0..height {
+        for x in 0..width {
+            let p = P(y, x);
+            if unit_id[y as usize][x as usize] != -1 {
+                continue;
+            }
+            let mut n_adj = 0;
+            for d in &FOUR_NEIGHBOURS {
+                if ans.get_checked(LP::of_vertex(p) + *d) {
+                    n_adj += 1;
+                }
+            }
+
+            if n_adj != 1 {
+                continue;
+            }
+
+            let id = next_id;
+            next_id += 1;
+
+            let mut cur = p;
+            let mut last = P(-1, -1);
+            'trace: loop {
+                unit_id[cur.y() as usize][cur.x() as usize] = id;
+                for d in &FOUR_NEIGHBOURS {
+                    let nex = cur + *d;
+                    if nex != last && ans.get_checked(LP::of_vertex(cur) + *d) {
+                        last = cur;
+                        cur = nex;
+                        continue 'trace;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    for y in 0..height {
+        for x in 0..width {
+            let id = unit_id[y as usize][x as usize];
+            if id == -1 {
+                continue;
+            }
+
+            // perform BFS to find another chain with the same id that does not pass through cells with id != -1
+            let mut visited = vec![vec![false; width as usize]; height as usize];
+            let mut pre = vec![vec![P(-1, -1); width as usize]; height as usize];
+            let mut q = std::collections::VecDeque::new();
+            visited[y as usize][x as usize] = true;
+            q.push_back(P(y, x));
+
+            let mut dest = None;
+
+            while let Some(cur) = q.pop_front() {
+                if cur != P(y, x) && unit_id[cur.y() as usize][cur.x() as usize] == id {
+                    dest = Some(cur);
+                    break;
+                }
+
+                for d in &FOUR_NEIGHBOURS {
+                    let nex = cur + *d;
+                    if !(0 <= nex.y() && nex.y() < height && 0 <= nex.x() && nex.x() < width) {
+                        continue;
+                    }
+
+                    let uid = unit_id[nex.y() as usize][nex.x() as usize];
+                    if ans.get_checked(LP::of_vertex(cur) + *d) {
+                        continue;
+                    }
+
+                    if visited[nex.y() as usize][nex.x() as usize] {
+                        continue;
+                    }
+
+                    if uid != id && uid != -1 {
+                        continue;
+                    }
+
+                    visited[nex.y() as usize][nex.x() as usize] = true;
+                    pre[nex.y() as usize][nex.x() as usize] = cur;
+                    q.push_back(nex);
+                }
+            }
+
+            if let Some(dest) = dest {
+                // reconstruct the path
+                let mut ret = LinePlacement::new(height, width);
+                let mut cur = dest;
+                while pre[cur.y() as usize][cur.x() as usize] != P(-1, -1) {
+                    let nex = pre[cur.y() as usize][cur.x() as usize];
+                    if cur.y() == nex.y() {
+                        // horizontal
+                        let y = cur.y();
+                        let x = std::cmp::min(cur.x(), nex.x());
+                        ret.set_right(P(y, x), true);
+                    } else {
+                        // vertical
+                        let y = std::cmp::min(cur.y(), nex.y());
+                        let x = cur.x();
+                        ret.set_down(P(y, x), true);
+                    }
+                    cur = nex;
+                }
+                return Some(ret);
+            }
+        }
+    }
+
+    None
 }
 
 fn answer_to_json(ans: &LinePlacement, height: i32, width: i32) -> String {
@@ -161,14 +280,49 @@ fn answer_to_json(ans: &LinePlacement, height: i32, width: i32) -> String {
     for y in 0..height {
         for x in 0..width {
             if x < width - 1 && ans.right(P(y, x)) {
-                toks.push(format!("{{\"y\":{},\"x\":{},\"color\":\"green\",\"item\":\"line\"}}", y * 2 + 1, x * 2 + 2));
+                toks.push(format!(
+                    "{{\"y\":{},\"x\":{},\"color\":\"green\",\"item\":\"line\"}}",
+                    y * 2 + 1,
+                    x * 2 + 2
+                ));
             }
             if y < height - 1 && ans.down(P(y, x)) {
-                toks.push(format!("{{\"y\":{},\"x\":{},\"color\":\"green\",\"item\":\"line\"}}", y * 2 + 2, x * 2 + 1));
+                toks.push(format!(
+                    "{{\"y\":{},\"x\":{},\"color\":\"green\",\"item\":\"line\"}}",
+                    y * 2 + 2,
+                    x * 2 + 1
+                ));
             }
         }
     }
-    format!("{{\"kind\":\"grid\",\"height\":{},\"width\":{},\"defaultStyle\":\"empty\",\"data\":[{}]}}", height, width, &toks.join(","))
+
+    let extra_path = find_extra_answer(ans, height, width);
+    if let Some(extra_path) = extra_path {
+        for y in 0..height {
+            for x in 0..width {
+                if x < width - 1 && extra_path.right(P(y, x)) {
+                    toks.push(format!(
+                        "{{\"y\":{},\"x\":{},\"color\":\"red\",\"item\":\"dottedLine\"}}",
+                        y * 2 + 1,
+                        x * 2 + 2
+                    ));
+                }
+                if y < height - 1 && extra_path.down(P(y, x)) {
+                    toks.push(format!(
+                        "{{\"y\":{},\"x\":{},\"color\":\"red\",\"item\":\"dottedLine\"}}",
+                        y * 2 + 2,
+                        x * 2 + 1
+                    ));
+                }
+            }
+        }
+    }
+    format!(
+        "{{\"kind\":\"grid\",\"height\":{},\"width\":{},\"defaultStyle\":\"empty\",\"data\":[{}]}}",
+        height,
+        width,
+        &toks.join(",")
+    )
 }
 
 pub fn solve_problem(problem: &[i32], height: i32, width: i32, limit: usize) -> String {
@@ -184,8 +338,15 @@ pub fn solve_problem(problem: &[i32], height: i32, width: i32, limit: usize) -> 
         ret_string = "{\"status\":\"error\",\"description\":\"no answer\"}".to_owned();
     } else {
         let common_json = answer_common(problem, height, width);
-        let ans_json = res.iter().map(|a| answer_to_json(a, height, width)).collect::<Vec<_>>().join(",");
-        ret_string = format!("{{\"status\":\"ok\",\"description\":{{\"common\":{},\"answers\":[{}]}}}}", common_json, ans_json);
+        let ans_json = res
+            .iter()
+            .map(|a| answer_to_json(a, height, width))
+            .collect::<Vec<_>>()
+            .join(",");
+        ret_string = format!(
+            "{{\"status\":\"ok\",\"description\":{{\"common\":{},\"answers\":[{}]}}}}",
+            common_json, ans_json
+        );
     }
     ret_string
 }
