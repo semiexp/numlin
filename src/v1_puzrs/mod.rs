@@ -275,7 +275,7 @@ fn find_extra_answer(ans: &LinePlacement, height: i32, width: i32) -> Option<Lin
     None
 }
 
-fn answer_to_json(ans: &LinePlacement, height: i32, width: i32) -> String {
+fn answer_to_json(ans: &LinePlacement, height: i32, width: i32) -> (String, bool) {
     let mut toks = vec![];
     for y in 0..height {
         for x in 0..width {
@@ -297,7 +297,7 @@ fn answer_to_json(ans: &LinePlacement, height: i32, width: i32) -> String {
     }
 
     let extra_path = find_extra_answer(ans, height, width);
-    if let Some(extra_path) = extra_path {
+    if let Some(extra_path) = &extra_path {
         for y in 0..height {
             for x in 0..width {
                 if x < width - 1 && extra_path.right(P(y, x)) {
@@ -317,12 +317,15 @@ fn answer_to_json(ans: &LinePlacement, height: i32, width: i32) -> String {
             }
         }
     }
-    format!(
+
+    let res = format!(
         "{{\"kind\":\"grid\",\"height\":{},\"width\":{},\"defaultStyle\":\"empty\",\"data\":[{}]}}",
         height,
         width,
         &toks.join(",")
-    )
+    );
+
+    (res, extra_path.is_some())
 }
 
 pub fn solve_problem(problem: &[i32], height: i32, width: i32, limit: usize) -> String {
@@ -338,14 +341,22 @@ pub fn solve_problem(problem: &[i32], height: i32, width: i32, limit: usize) -> 
         ret_string = "{\"status\":\"error\",\"description\":\"no answer\"}".to_owned();
     } else {
         let common_json = answer_common(problem, height, width);
-        let ans_json = res
-            .iter()
-            .map(|a| answer_to_json(a, height, width))
-            .collect::<Vec<_>>()
-            .join(",");
+
+        let mut boards = vec![];
+        let mut is_unique = res.len() == 1;
+        for r in &res {
+            let (b, has_extra) = answer_to_json(r, height, width);
+            boards.push(b);
+
+            if has_extra {
+                is_unique = false;
+            }
+        }
+
+        let ans_json = boards.join(",");
         ret_string = format!(
-            "{{\"status\":\"ok\",\"description\":{{\"common\":{},\"answers\":[{}]}}}}",
-            common_json, ans_json
+            "{{\"status\":\"ok\",\"description\":{{\"common\":{},\"answers\":[{}],\"isUnique\":{}}}}}",
+            common_json, ans_json, is_unique
         );
     }
     ret_string
